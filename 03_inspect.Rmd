@@ -1,0 +1,67 @@
+---
+title: "03_inspect_data"
+author: "Joel Earlywine"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(skimr)
+library(janitor)
+
+# CHANGE THIS TO POINT TO WHERE DATASET NAME WAS DEFINED
+source("01_packages.R")
+source("02_load_data.R")
+
+# CHANGE ONLY THIS LINE
+dataset_name <- "df1"
+
+# Pull dataset from your R environment
+data <- get(dataset_name)
+
+# Basic checks
+stopifnot(is.data.frame(data) || tibble::is_tibble(data))
+
+n_rows <- nrow(data)
+n_cols <- ncol(data)
+```
+
+# Dataset overview
+
+```{r}
+cat("Dataset name:", dataset_name, "\n")
+cat("Rows:", n_rows, "\n")
+cat("Columns:", n_cols, "\n")
+```
+
+# Column names
+
+```{r}
+data.frame(
+  column_number = seq_along(names(data)),
+  column_name = names(data)
+)
+```
+
+
+# Summary
+
+```{r}
+# Comprehensive variable diagnostics
+summarytools::dfSummary(
+  data,
+  graph.col = FALSE
+)
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
