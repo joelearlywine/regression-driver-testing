@@ -1,0 +1,215 @@
+---
+title: "Matched sample Creation and Diagnostics"
+author: "Joel Earlywine"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+---
+title: "Matched Sample Creation and Diagnostics"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(dplyr)
+library(MatchIt)
+library(cobalt)
+library(ggplot2)
+
+source("01_packages.R")
+source("02_load_data.R")
+
+df1_original <- df1
+```
+
+# Matching specification
+
+```{r}
+match_model <- matchit(
+  treated ~ x01 + x02 + x03 + x04 + x05 + x06 + x07 + x09,
+  data = df1_original,
+  method = "nearest",
+  distance = "glm",
+  ratio = 1
+)
+
+match_model
+```
+
+# Matching summary
+
+```{r}
+summary(match_model)
+```
+
+# Balance diagnostics table
+
+```{r}
+balance_table <- cobalt::bal.tab(match_model)
+
+balance_table
+```
+
+# Love plot
+
+```{r, fig.width=8, fig.height=6}
+cobalt::love.plot(
+  match_model,
+  binary = "std",
+  thresholds = c(m = 0.1),
+  abs = TRUE
+)
+```
+
+# Propensity score overlap before matching
+
+```{r, fig.width=8, fig.height=5}
+plot(
+  match_model,
+  type = "density",
+  interactive = FALSE
+)
+```
+
+# Propensity score jitter plot
+
+```{r, fig.width=8, fig.height=5}
+plot(
+  match_model,
+  type = "jitter",
+  interactive = FALSE
+)
+```
+
+# Extract matched sample
+
+```{r}
+df1_matched <- match.data(match_model)
+
+df1_matched_clean <- df1_matched %>%
+  mutate(
+    matched_sample = TRUE,
+    matching_method = "nearest_neighbor_1to1",
+    propensity_score = distance,
+    matched_wgt = weights,
+    matched_set_id = subclass
+  ) %>%
+  select(
+    id,
+    matched_sample,
+    matched_set_id,
+    matching_method,
+    propensity_score,
+    matched_wgt,
+    everything(),
+    -distance,
+    -weights,
+    -subclass
+  )
+
+dim(df1_matched_clean)
+```
+
+# Variable names in matched dataset
+
+```{r}
+names(df1_matched_clean)
+```
+
+# Matched sample treatment counts
+
+```{r}
+df1_matched_clean %>%
+  count(treated)
+```
+
+# Original vs matched sample size
+
+```{r}
+sample_size_comparison <- data.frame(
+  sample = c("Original", "Matched"),
+  rows = c(nrow(df1_original), nrow(df1_matched_clean)),
+  treated_n = c(
+    sum(df1_original$treated == TRUE),
+    sum(df1_matched_clean$treated == TRUE)
+  ),
+  control_n = c(
+    sum(df1_original$treated == FALSE),
+    sum(df1_matched_clean$treated == FALSE)
+  )
+)
+
+sample_size_comparison
+```
+
+# Outcome comparison in matched sample
+
+```{r}
+matched_outcome_summary <- df1_matched_clean %>%
+  group_by(treated) %>%
+  summarise(
+    n = n(),
+    mean_birthweight = mean(y01, na.rm = TRUE),
+    sd_birthweight = sd(y01, na.rm = TRUE),
+    min_birthweight = min(y01, na.rm = TRUE),
+    max_birthweight = max(y01, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+matched_outcome_summary
+```
+
+# Weighted matched-sample regression
+
+```{r}
+matched_lm <- lm(
+  y01 ~ treated,
+  data = df1_matched_clean,
+  weights = matched_wgt
+)
+
+summary(matched_lm)
+```
+
+# Save matched sample
+
+```{r}
+saveRDS(
+  df1_matched_clean,
+  file = "cattaneo2_matched_sample.rds"
+)
+
+write.csv(
+  df1_matched_clean,
+  file = "cattaneo2_matched_sample.csv",
+  row.names = FALSE
+)
+
+cat("Saved files:\n")
+cat("- cattaneo2_matched_sample.rds\n")
+cat("- cattaneo2_matched_sample.csv\n")
+```
+
+# Final summary
+
+```{r}
+# Comprehensive variable diagnostics
+summarytools::dfSummary(
+  df1_matched_clean,
+  graph.col = FALSE
+)
+```
+
+# Session information
+
+```{r}
+sessionInfo()
+```
